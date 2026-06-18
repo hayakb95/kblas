@@ -12,7 +12,7 @@
 template <typename T>
 class Matrix {
 private:
-    std::vector<std::vector<T>> data;
+    std::vector<T> data;  // Single contiguous vector (row-major order)
     size_t rows;
     size_t cols;
 
@@ -28,6 +28,10 @@ public:
     // Get dimensions
     size_t getRows() const;
     size_t getCols() const;
+
+    // Direct data access (useful for optimization)
+    T* getData();
+    const T* getData() const;
 
     // Matrix operations
     Matrix<T> operator+(const Matrix<T>& other) const;
@@ -46,3 +50,4 @@ public:
 #include "Matrix.tpp"
 
 #endif // MATRIX_HPP
+

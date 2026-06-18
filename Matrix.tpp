@@ -4,22 +4,23 @@
 
 // Constructors
 template <typename T>
-Matrix<T>::Matrix(size_t r, size_t c) : rows(r), cols(c) {
-    data.resize(rows, std::vector<T>(cols, T()));
+Matrix<T>::Matrix(size_t r, size_t c) : rows(r), cols(c), data(r * c) {
+    // data is initialized with default-constructed T() values
 }
 
 template <typename T>
-Matrix<T>::Matrix(size_t r, size_t c, const T& initial) : rows(r), cols(c) {
-    data.resize(rows, std::vector<T>(cols, initial));
+Matrix<T>::Matrix(size_t r, size_t c, const T& initial) 
+    : rows(r), cols(c), data(r * c, initial) {
+    // All elements initialized to 'initial'
 }
 
-// Access elements
+// Access elements using row-major indexing: index = row * cols + col
 template <typename T>
 T& Matrix<T>::operator()(size_t row, size_t col) {
     if (row >= rows || col >= cols) {
         throw std::out_of_range("Matrix indices out of range");
     }
-    return data[row][col];
+    return data[row * cols + col];
 }
 
 template <typename T>
@@ -27,7 +28,7 @@ const T& Matrix<T>::operator()(size_t row, size_t col) const {
     if (row >= rows || col >= cols) {
         throw std::out_of_range("Matrix indices out of range");
     }
-    return data[row][col];
+    return data[row * cols + col];
 }
 
 // Get dimensions
@@ -41,6 +42,17 @@ size_t Matrix<T>::getCols() const {
     return cols;
 }
 
+// Direct data access
+template <typename T>
+T* Matrix<T>::getData() {
+    return data.data();
+}
+
+template <typename T>
+const T* Matrix<T>::getData() const {
+    return data.data();
+}
+
 // Matrix addition
 template <typename T>
 Matrix<T> Matrix<T>::operator+(const Matrix<T>& other) const {
@@ -48,10 +60,8 @@ Matrix<T> Matrix<T>::operator+(const Matrix<T>& other) const {
         throw std::invalid_argument("Matrix dimensions must match for addition");
     }
     Matrix<T> result(rows, cols);
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < cols; ++j) {
-            result(i, j) = data[i][j] + other(i, j);
-        }
+    for (size_t i = 0; i < rows * cols; ++i) {
+        result.data[i] = data[i] + other.data[i];
     }
     return result;
 }
@@ -63,10 +73,8 @@ Matrix<T> Matrix<T>::operator-(const Matrix<T>& other) const {
         throw std::invalid_argument("Matrix dimensions must match for subtraction");
     }
     Matrix<T> result(rows, cols);
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < cols; ++j) {
-            result(i, j) = data[i][j] - other(i, j);
-        }
+    for (size_t i = 0; i < rows * cols; ++i) {
+        result.data[i] = data[i] - other.data[i];
     }
     return result;
 }
@@ -78,13 +86,14 @@ Matrix<T> Matrix<T>::operator*(const Matrix<T>& other) const {
         throw std::invalid_argument("Invalid dimensions for matrix multiplication");
     }
     Matrix<T> result(rows, other.cols);
+    
     for (size_t i = 0; i < rows; ++i) {
         for (size_t j = 0; j < other.cols; ++j) {
             T sum = T();
             for (size_t k = 0; k < cols; ++k) {
-                sum += data[i][k] * other(k, j);
+                sum += data[i * cols + k] * other.data[k * other.cols + j];
             }
-            result(i, j) = sum;
+            result.data[i * result.cols + j] = sum;
         }
     }
     return result;
@@ -94,10 +103,8 @@ Matrix<T> Matrix<T>::operator*(const Matrix<T>& other) const {
 template <typename T>
 Matrix<T> Matrix<T>::operator*(const T& scalar) const {
     Matrix<T> result(rows, cols);
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < cols; ++j) {
-            result(i, j) = data[i][j] * scalar;
-        }
+    for (size_t i = 0; i < rows * cols; ++i) {
+        result.data[i] = data[i] * scalar;
     }
     return result;
 }
@@ -108,7 +115,7 @@ Matrix<T> Matrix<T>::transpose() const {
     Matrix<T> result(cols, rows);
     for (size_t i = 0; i < rows; ++i) {
         for (size_t j = 0; j < cols; ++j) {
-            result(j, i) = data[i][j];
+            result.data[j * rows + i] = data[i * cols + j];
         }
     }
     return result;
@@ -119,7 +126,7 @@ template <typename T>
 void Matrix<T>::print() const {
     for (size_t i = 0; i < rows; ++i) {
         for (size_t j = 0; j < cols; ++j) {
-            std::cout << std::setw(8) << data[i][j] << " ";
+            std::cout << std::setw(8) << data[i * cols + j] << " ";
         }
         std::cout << std::endl;
     }
@@ -137,11 +144,15 @@ Matrix<T> Matrix<T>::optTranspose(size_t bsize_row, size_t bsize_col) const {
 
     Matrix<T> result(cols, rows); // Allocated transposed matrix
 
+    size_t rowIndex, colIndex;
+
     for (size_t rBlockIdx = 0; rBlockIdx < row_blocks; ++rBlockIdx) {
         for (size_t cBlockIdx = 0; cBlockIdx < col_blocks; ++cBlockIdx) {
             for (size_t i = 0; i < bsize_row; ++i) {
+                rowIndex = rBlockIdx * bsize_row + i; // Calculate row index
                 for (size_t j = 0; j < bsize_col; ++j) {
-                    result(cBlockIdx * bsize_col + j, rBlockIdx * bsize_row + i) = data[rBlockIdx * bsize_row + i][cBlockIdx * bsize_col + j];
+                    colIndex = cBlockIdx * bsize_col; // Calculate column index
+                    result.data[ (colIndex + j) * rows + rowIndex] = data[rowIndex * cols + colIndex + j];
                 }
             }
         }
@@ -151,8 +162,10 @@ Matrix<T> Matrix<T>::optTranspose(size_t bsize_row, size_t bsize_col) const {
     if (row_remainder > 0) {
         for (size_t cBlockIdx = 0; cBlockIdx < col_blocks; ++cBlockIdx) {
             for (size_t i = 0; i < row_remainder; ++i) {
+                rowIndex = row_blocks * bsize_row + i; // Calculate row index
                 for (size_t j = 0; j < bsize_col; ++j) {
-                    result(cBlockIdx * bsize_col + j, row_blocks * bsize_row + i) = data[row_blocks * bsize_row + i][cBlockIdx * bsize_col + j];
+                    colIndex = cBlockIdx * bsize_col + j; // Calculate column index
+                    result.data[colIndex * rows + rowIndex] = data[rowIndex * cols + colIndex];
                 }
             }
         }
@@ -162,8 +175,10 @@ Matrix<T> Matrix<T>::optTranspose(size_t bsize_row, size_t bsize_col) const {
     if (col_remainder > 0) {
         for (size_t rBlockIdx = 0; rBlockIdx < row_blocks; ++rBlockIdx) {
             for (size_t i = 0; i < bsize_row; ++i) {
+                rowIndex = rBlockIdx * bsize_row + i; // Calculate row index
                 for (size_t j = 0; j < col_remainder; ++j) {
-                    result(col_blocks * bsize_col + j, rBlockIdx * bsize_row + i) = data[rBlockIdx * bsize_row + i][col_blocks * bsize_col + j];
+                    colIndex = col_blocks * bsize_col + j; // Calculate column index
+                    result.data[colIndex * rows + rowIndex] = data[rowIndex * cols + colIndex];
                 }
             }
         }
@@ -173,7 +188,9 @@ Matrix<T> Matrix<T>::optTranspose(size_t bsize_row, size_t bsize_col) const {
     if (row_remainder > 0 && col_remainder > 0) {
         for (size_t i = 0; i < row_remainder; ++i) {
             for (size_t j = 0; j < col_remainder; ++j) {
-                result(col_blocks * bsize_col + j, row_blocks * bsize_row + i) = data[row_blocks * bsize_row + i][col_blocks * bsize_col + j];
+                rowIndex = row_blocks * bsize_row + i; // Calculate row index
+                colIndex = col_blocks * bsize_col + j; // Calculate column index
+                result.data[colIndex * rows + rowIndex] = data[rowIndex * cols + colIndex];
             }
         }
     }
@@ -185,12 +202,10 @@ Matrix<T> Matrix<T>::optTranspose(size_t bsize_row, size_t bsize_col) const {
 template <typename T>
 Matrix<T> Matrix<T>::frobeniusNorm() const {
     T sum = T();
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < cols; ++j) { 
-            sum += data[i][j] * data[i][j];
-        }
+    for (size_t i = 0; i < rows * cols; ++i) {
+        sum += data[i] * data[i];
     }
     Matrix<T> result(1, 1);
-    result(0, 0) = std::sqrt(sum);
+    result.data[0] = std::sqrt(sum);
     return result;
 }

@@ -197,9 +197,16 @@ void runTestSuite() {
     if (runTest(test9)) passed++;
 
     // Test 10: Large Square Float matrix
-    TestConfig<float> test10 = {1000, 1000, -100.0f, 100.0f, 16, 16};
+    TestConfig<float> test10 = {5000, 5000, -100.0f, 100.0f, 16, 16};
     total++;
     if (runTest(test10)) passed++;
+
+    // Test 11: Large Square Float matrix
+    for (size_t block_size = 2; block_size <= 64; block_size *= 2) {
+        TestConfig<float> test = {5000, 5000, -100.0f, 100.0f, block_size, block_size};
+        total++;
+        if (runTest(test)) passed++;
+    }
     
     // Summary
     std::cout << "========================================" << std::endl;
